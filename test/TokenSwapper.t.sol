@@ -9,6 +9,7 @@ contract TokenSwapperTest is Test {
     TokenSwapper public tokenSwapper;
 
     // uint256 ethAmount;
+    uint256 price;
 
      //sepolia address for ETH, LINK and DAI
     address public ethToken = 0xd38E5c25935291fFD51C9d66C3B7384494bb099A;
@@ -23,7 +24,7 @@ contract TokenSwapperTest is Test {
     // Sets up TokenSwapper contract before each test
     function setUp() public {
         tokenSwapper = new TokenSwapper(
-            ethToken, linkToken, daiToken, ethUsdAggregator, linkUsdAggregator, daiUsdAggregator
+           
         );
     }
 function testChainLinkPriceFeed() public {
@@ -56,7 +57,7 @@ function testSwapETHtoLINK() public {
 
     // Get the expected amount of LINK to receive based on the current exchange rate
     // int256 price = tokenSwapper.(tokenSwapper.ethUsdAggregator());
-    uint256 expectedLINKAmount = (ethAmount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
+    uint256 expectedLINKAmount = (ethAmount * price) / 1e18; // Adjust for Chainlink decimals (18)
 
     uint256 initialLINKBalance = IERC20(tokenSwapper.linkToken()).balanceOf(address(this));
 
