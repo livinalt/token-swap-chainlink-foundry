@@ -11,7 +11,7 @@ contract TokenSwapperTest is Test {
     // uint256 ethAmount;
     uint256 price;
 
-     //sepolia address for ETH, LINK and DAI
+    // sepolia address for ETH, LINK, and DAI
     address public ethToken = 0xd38E5c25935291fFD51C9d66C3B7384494bb099A;
     address public linkToken = 0x779877A7B0D9E8603169DdbD7836e478b4624789;
     address public daiToken = 0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6;
@@ -23,90 +23,90 @@ contract TokenSwapperTest is Test {
 
     // Sets up TokenSwapper contract before each test
     function setUp() public {
-        tokenSwapper = new TokenSwapper(
-           
-        );
+        tokenSwapper = new TokenSwapper();
     }
-function testChainLinkPriceFeed() public {
-    int result = tokenSwapper.getChainlinkDataFeedLatestAnswer(linkUsdAggregator);
-    // console2.log(result);
-    assertGt(result, 1);
-}
 
-function testAddLiquidity() public {
-    uint256 linkAmount = 10e18;
-    IERC20(tokenSwapper.linkToken()).transfer(address(this), linkAmount);
-    assertEq(IERC20(tokenSwapper.linkToken()).balanceOf(address(this)), linkAmount);
+    function testChainLinkPriceFeed() public {
+        int result = tokenSwapper.getChainlinkDataFeedLatestAnswer(linkUsdAggregator);
+        // console2.log(result);
+        assertGt(result, 1);
+    }
 
-    uint256 ethAmount = 10e18;
-    uint256 daiAmount = 10e18;
+    function testAddLiquidity() public {
+        vm.startPrank(0x61E5E1ea8fF9Dc840e0A549c752FA7BDe9224e99);
+        uint256 ethAmount = 10e18;
+        IERC20(tokenSwapper.linkToken()).transfer(address(this), ethAmount);
+        assertEq(IERC20(tokenSwapper.linkToken()).balanceOf(address(this)), ethAmount);
+        vm.stopPrank();
 
-    tokenSwapper.addLiquidity{ value: ethAmount }(ethAmount, linkAmount, daiAmount);
+        vm.startPrank(0xd0aD7222c212c1869334a680e928d9baE85Dd1d0);
+        uint256 linkAmount = 10e18;
+        uint256 daiAmount = 10e18;
 
-    uint256 ethBalance = tokenSwapper.ethDeposit();
-    uint256 linkBalance = tokenSwapper.linkDeposit();
-    uint256 daiBalance = tokenSwapper.daiDeposit();
+        IERC20(ethToken).approve(address(tokenSwapper), ethAmount);
+        IERC20(daiToken).approve(address(tokenSwapper), daiAmount);
+        IERC20(linkToken).approve(address(tokenSwapper), linkAmount);
 
-    assertEq(ethBalance, ethAmount);
-    assertEq(linkBalance, linkAmount);
-    assertEq(daiBalance, daiAmount);
-}
+        tokenSwapper.addLiquidity{ value: ethAmount }(ethAmount, linkAmount, daiAmount);
 
-function testSwapETHtoLINK() public {
-    uint256 ethAmount = 1 ether; // Set the amount of ETH to swap (1 ETH)
+        uint256 ethBalance = tokenSwapper.ethDeposit(ethToken);
+        uint256 linkBalance = tokenSwapper.linkDeposit(linkToken);
+        uint256 daiBalance = tokenSwapper.daiDeposit(daiToken);
 
-    // Get the expected amount of LINK to receive based on the current exchange rate
-    // int256 price = tokenSwapper.(tokenSwapper.ethUsdAggregator());
-    uint256 expectedLINKAmount = (ethAmount * price) / 1e18; // Adjust for Chainlink decimals (18)
+        assertEq(ethBalance, ethAmount);
+        assertEq(linkBalance, linkAmount);
+        assertEq(daiBalance, daiAmount);
+    }
 
-    uint256 initialLINKBalance = IERC20(tokenSwapper.linkToken()).balanceOf(address(this));
+    function testSwapETHtoLINK() public {
+        
+        uint256 ethAmount = 1 ether; // Set the amount of ETH to swap (1 ETH)
 
-    // Perform swap ETH to LINK transaction
-    tokenSwapper.swapETHtoLINK{ value: ethAmount }(ethAmount);
+        // Get the expected amount of LINK to receive based on the current exchange rate
+        uint256 expectedLINKAmount = (ethAmount * price) / 1e18; // Adjust for Chainlink decimals (18)
+        uint256 initialLINKBalance = IERC20(tokenSwapper.linkToken()).balanceOf(address(this));
 
-    uint256 finalLINKBalance = IERC20(tokenSwapper.linkToken()).balanceOf(address(this));
+        // Perform swap ETH to LINK transaction
+        tokenSwapper.swapETHtoLINK{ value: ethAmount }(ethAmount);
+        uint256 finalLINKBalance = IERC20(tokenSwapper.linkToken()).balanceOf(address(this));
 
-    // Assert that the LINK balance has increased by the correct amount
-    assertEq(finalLINKBalance - initialLINKBalance, expectedLINKAmount);
-}
+        // Assert that the LINK balance has increased by the correct amount
+        assertEq(finalLINKBalance - initialLINKBalance, expectedLINKAmount);
+    }
 
-function testSwapLINKtoETH() public {
-    uint256 linkAmount = 100e18; // Set the amount of LINK to swap (100 LINK)
-    uint256 initialETHBalance = address(this).balance;
+    function testSwapLINKtoETH() public {
+        uint256 linkAmount = 100e18; // Set the amount of LINK to swap (100 LINK)
+        uint256 initialETHBalance = address(this).balance;
 
-    // Perform swap LINK to ETH transaction
-    tokenSwapper.swapLINKtoETH(linkAmount);
+        // Perform swap LINK to ETH transaction
+        tokenSwapper.swapLINKtoETH(linkAmount);
+        uint256 finalETHBalance = address(this).balance;
 
-    uint256 finalETHBalance = address(this).balance;
+        // Assert that the ETH balance has increased by the correct amount
+        assertGt(finalETHBalance, initialETHBalance);
+    }
 
-    // Assert that the ETH balance has increased by the correct amount
-    assertGt(finalETHBalance, initialETHBalance);
-}
+    function testSwapDAItoETH() public {
+        uint256 daiAmount = 100e18; // Set the amount of DAI to swap (100 DAI)
+        uint256 initialETHBalance = address(this).balance;
 
-function testSwapDAItoETH() public {
-    uint256 daiAmount = 100e18; // Set the amount of DAI to swap (100 DAI)
-    uint256 initialETHBalance = address(this).balance;
+        // Perform swap DAI to ETH transaction
+        tokenSwapper.swapDAItoETH(daiAmount);
+        uint256 finalETHBalance = address(this).balance;
 
-    // Perform swap DAI to ETH transaction
-    tokenSwapper.swapDAItoETH(daiAmount);
+        // Assert that the ETH balance has increased by the correct amount
+        assertGt(finalETHBalance, initialETHBalance);
+    }
 
-    uint256 finalETHBalance = address(this).balance;
+    function testSwapETHtoDAI() public {
+        uint256 ethAmount = 1 ether; // Set the amount of ETH to swap (1 ETH)
+        uint256 initialDaiBalance = IERC20(tokenSwapper.daiToken()).balanceOf(address(this));
 
-    // Assert that the ETH balance has increased by the correct amount
-    assertGt(finalETHBalance, initialETHBalance);
-}
+        // Perform swap ETH to DAI transaction
+        tokenSwapper.swapETHtoDAI{ value: ethAmount }(ethAmount);
+        uint256 finalDaiBalance = IERC20(tokenSwapper.daiToken()).balanceOf(address(this));
 
-function testSwapETHtoDAI() public {
-    uint256 ethAmount = 1 ether; // Set the amount of ETH to swap (1 ETH)
-    uint256 initialDaiBalance = IERC20(tokenSwapper.daiToken()).balanceOf(address(this));
-
-    // Perform swap ETH to DAI transaction
-    tokenSwapper.swapETHtoDAI{ value: ethAmount }(ethAmount);
-
-    uint256 finalDaiBalance = IERC20(tokenSwapper.daiToken()).balanceOf(address(this));
-
-    // Assert that the DAI balance has increased by the correct amount
-    assertGt(finalDaiBalance, initialDaiBalance);
-}
-
+        // Assert that the DAI balance has increased by the correct amount
+        assertGt(finalDaiBalance, initialDaiBalance);
+    }
 }
