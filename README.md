@@ -1,66 +1,29 @@
-## Foundry
+# Token Swapper
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+The Token Swapper contract facilitates decentralized swapping of various tokens on the Ethereum blockchain.
 
-Foundry consists of:
+## Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+The Token Swapper contract enables users to swap tokens such as ETH, LINK, and DAI in a trustless and efficient manner. It provides functions for swapping ETH to other tokens, swapping other tokens to ETH, and adding liquidity to the contract.
 
-## Documentation
+## Features
 
-https://book.getfoundry.sh/
+- Swap ETH to LINK
+- Swap LINK to ETH
+- Swap ETH to DAI
+- Swap DAI to ETH
+- Add liquidity
+
+## Technology Stack
+
+- Solidity
+- OpenZeppelin Contracts
+- Chainlink
+- Foundry
 
 ## Usage
 
-### Build
+1. **Build the Contract:**
 
 ```shell
 $ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
