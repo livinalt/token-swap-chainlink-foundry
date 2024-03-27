@@ -7,145 +7,116 @@ import {IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20
 
 
 contract TokenSwapper {
-
-    //sepolia address for ETH, LINK and DAI
-    address public ethToken = 0xd38E5c25935291fFD51C9d66C3B7384494bb099A;
+    // addresses for tokens and price feed aggregators
+    address public ethToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // using WETH
     address public linkToken = 0x779877A7B0D9E8603169DdbD7836e478b4624789;
-    // address public daiToken = 0x3e622317f8c93f7328350cf0b56d9ed4c620c5d6;
-    address public daiToken = 0x14866185B1962B63C3Ea9E03Bc1da838bab34C19;
+    address public daiToken = 0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6;
+    address public ethUsdAggregator = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+    address public linkUsdAggregator = 0xc59E3633BAAC79493d908e63626716e204A45EdF;
+    address public daiUsdAggregator = 0x14866185B1962B63C3Ea9E03Bc1da838bab34C19;
+    
+    int pairResult;
+    mapping(address => uint256) public ethDeposit;
+    mapping(address => uint256) public linkDeposit;
+    mapping(address => uint256) public daiDeposit;
 
-    // Chainlink aggregator addresses for token price feeds
-    address public eth_usd_address = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Address of eth to usd price feed aggregator
-    address public link_usd_feed_address = 0xc59E3633BAAC79493d908e63626716e204A45EdF; // Address of link to usd price feed aggregator
-    address public dai_usd_feed_address = 0x14866185B1962B63C3Ea9E03Bc1da838bab34C19;  // Address of dai to usd price feed aggregator
+    AggregatorV3Interface internal dataFeed;
 
-    // event LiquidityAdded(address.target, ethAmount, linkAmount, daiAmount);
+    AggregatorV3Interface internal ethDataFeed;
+    AggregatorV3Interface internal linkDataFeed;
+    AggregatorV3Interface internal daiDataFeed;
 
+    event TokensSwapped(address indexed from, address indexed to, address indexed token, uint256 amount);
 
-    constructor(
-        address _ethToken, 
-        address _linkToken, 
-        address _daiToken,
-        address _eth_usd_address,
-        address _link_usd_feed_address
-        // address _dai_usd_feed_address,
-    ) {
-        ethToken = _ethToken;
-        linkToken = _linkToken;
-        daiToken = _daiToken;
-        eth_usd_address = _eth_usd_address;
-        link_usd_feed_address = _link_usd_feed_address;
-        // dai_usd_feed_address = _dai_usd_feed_address;
+    constructor() {
+        ethDataFeed = AggregatorV3Interface(ethUsdAggregator);
+        linkDataFeed = AggregatorV3Interface(linkUsdAggregator);
+        daiDataFeed = AggregatorV3Interface(daiUsdAggregator);
+    }
+
+    function getLatestPrices() internal view returns (int, int, int) {
+        (
+            /* uint80 roundID */,
+            int ethPrice,
+            /* uint startedAt */,
+            /* uint timeStamp */,
+            /* uint80 answeredInRound */
+        ) = ethDataFeed.latestRoundData();
+
+        (
+            /* uint80 roundID */,
+            int linkPrice,
+            /* uint startedAt */,
+            /* uint timeStamp */,
+            /* uint80 answeredInRound */
+        ) = linkDataFeed.latestRoundData();
+
+        (
+            /* uint80 roundID */,
+            int daiPrice,
+            /* uint startedAt */,
+            /* uint timeStamp */,
+            /* uint80 answeredInRound */
+        ) = daiDataFeed.latestRoundData();
+
+        return (ethPrice, linkPrice, daiPrice);
     }
 
     function swapETHtoLINK(uint256 amount) external payable {
-        require(amount > 0, "Amount must be greater than 0");
+        // Get the latest prices from Chainlink price feeds
+        (int ethPrice, int linkPrice, ) = getLatestPrices();
         
-        // Get the ETH to LINK conversion rate from Chainlink
-        AggregatorV3Interface ethToLinkPriceFeed = AggregatorV3Interface(eth_usd_address);
-        (, int256 price, , , ) = ethToLinkPriceFeed.latestRoundData();
-        uint256 linkAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
-
-        // Transfer ETH from sender to contract
-        require(msg.value >= amount, "Insufficient ETH provided");
+        uint256 linkAmount = (amount * uint256(ethPrice)) / uint256(linkPrice);        
+        require(msg.value >= amount, "Insufficient ETH sent");
         
-        // Transfer LINK from contract to sender
-        require(IERC20(linkToken).transfer(msg.sender, linkAmount), "Failed to transfer LINK");
+        require(IERC20(linkToken).transfer(msg.sender, linkAmount), "Failed to transfer LINK tokens");
+        emit TokensSwapped(address(this), msg.sender, linkToken, linkAmount);
     }
+
 
     function swapLINKtoETH(uint256 amount) external {
-        require(amount > 0, "Amount must be greater than 0");
-        
-        // Get the LINK to ETH conversion rate from Chainlink
-        AggregatorV3Interface linkToEthPriceFeed = AggregatorV3Interface(link_usd_feed_address);
-        (, int256 price, , , ) = linkToEthPriceFeed.latestRoundData();
-        uint256 ethAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
+        // Getting prices from Chainlink price feeds
+        (int ethPrice, int linkPrice, ) = getLatestPrices();        
+        uint256 ethAmount = (amount * uint256(linkPrice)) / uint256(ethPrice);
 
-        // Transfer LINK from sender to contract
-        require(IERC20(linkToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer LINK");
+        require(IERC20(linkToken).balanceOf(msg.sender) >= amount, "Insufficient LINK balance");
+        require(IERC20(linkToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer LINK tokens");
         
-        // Transfer ETH from contract to sender
-        (bool success, ) = msg.sender.call{value: ethAmount}("");
-        require(success, "ETH transfer failed");
-    }
-
-    function swapDAItoETH(uint256 amount) external {
-        require(amount > 0, "Amount must be greater than 0");
-        
-        // Get the DAI to ETH conversion rate from Chainlink
-        AggregatorV3Interface daiToEthPriceFeed = AggregatorV3Interface(dai_usd_feed_address);
-        (, int256 price, , , ) = daiToEthPriceFeed.latestRoundData();
-        uint256 ethAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
-
-        // Transfer DAI from sender to contract
-        require(IERC20(daiToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer DAI");
-        
-        // Transfer ETH from contract to sender
-        (bool success, ) = msg.sender.call{value: ethAmount}("");
+        (bool success, ) = msg.sender.call{ value: ethAmount }("");
         require(success, "ETH transfer failed");
     }
 
     function swapETHtoDAI(uint256 amount) external payable {
-        require(amount > 0, "Amount must be greater than 0");
+        // Getting prices from Chainlink price feeds
+        (int ethPrice,, int daiPrice) = getLatestPrices();
+        uint256 daiAmount = (amount * uint256(ethPrice)) / uint256(daiPrice);
         
-        // Get the ETH to DAI conversion rate from Chainlink
-        AggregatorV3Interface ethToDaiPriceFeed = AggregatorV3Interface(dai_usd_feed_address);
-        (, int256 price, , , ) = ethToDaiPriceFeed.latestRoundData();
-        uint256 daiAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
-
-        // Transfer ETH from sender to contract
-        require(msg.value >= amount, "Insufficient ETH provided");
-        
-        // Transfer DAI from contract to sender
-        require(IERC20(daiToken).transfer(msg.sender, daiAmount), "Failed to transfer DAI");
+        require(msg.value >= amount, "Insufficient ETH sent");
+        require(IERC20(daiToken).transfer(msg.sender, daiAmount), "Failed to transfer DAI tokens");
     }
 
-    // function swapLINKtoDAI(uint256 amount) external {
-    //     require(amount > 0, "Amount must be greater than 0");
+    function swapDAItoETH(uint256 amount) external {
+
+        (int ethPrice,,int daiPrice) = getLatestPrices();        
+        uint256 ethAmount = (amount * uint256(daiPrice)) / uint256(ethPrice);
+
+        require(IERC20(daiToken).balanceOf(msg.sender) >= amount, "Insufficient DAI balance");
+        require(IERC20(daiToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer DAI tokens");
         
-    //     // Get the LINK to DAI conversion rate from Chainlink
-    //     AggregatorV3Interface linkToDaiPriceFeed = AggregatorV3Interface(daiToLinkPriceFeedAddress);
-    //     (, int256 price, , , ) = linkToDaiPriceFeed.latestRoundData();
-    //     uint256 daiAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
-
-    //     // Transfer LINK from sender to contract
-    //     require(IERC20(linkToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer LINK");
-        
-    //     // Transfer DAI from contract to sender
-    //     require(IERC20(daiToken).transfer(msg.sender, daiAmount), "Failed to transfer DAI");
-    // }
-
-    // function swapDAItoLINK(uint256 amount) external {
-    //     require(amount > 0, "Amount must be greater than 0");
-        
-    //     // Get the DAI to LINK conversion rate from Chainlink
-    //     AggregatorV3Interface daiToLinkPriceFeed = AggregatorV3Interface(daiToLinkPriceFeedAddress);
-    //     (, int256 price, , , ) = daiToLinkPriceFeed.latestRoundData();
-    //     uint256 linkAmount = (amount * uint256(price)) / 1e18; // Adjust for Chainlink decimals (18)
-
-    //     // Transfer DAI from sender to contract
-    //     require(IERC20(daiToken).transferFrom(msg.sender, address(this), amount), "Failed to transfer DAI");
-        
-    //     // Transfer LINK from contract to sender
-    //     require(IERC20(linkToken).transfer(msg.sender, linkAmount), "Failed to transfer LINK");
-    // }
-
-     function addLiquidity(uint256 ethAmount, uint256 linkAmount, uint256 daiAmount) external payable {
-        // Ensure the user provides sufficient ETH
-        require(msg.value >= ethAmount, "Insufficient ETH provided");
-
-        // Transfer ETH, LINK, and DAI from the sender to the contract
-        require(IERC20(ethToken).transferFrom(msg.sender, address(this), ethAmount), "Failed to transfer ETH");
-        require(IERC20(linkToken).transferFrom(msg.sender, address(this), linkAmount), "Failed to transfer LINK");
-        require(IERC20(daiToken).transferFrom(msg.sender, address(this), daiAmount), "Failed to transfer DAI");
-
-        // Emit an event indicating the liquidity addition
-        // emit LiquidityAdded(msg.sender, ethAmount, linkAmount, daiAmount);
+        (bool success, ) = msg.sender.call{ value: ethAmount }("");
+        require(success, "ETH transfer failed");    
     }
 
-    function getPrice(address priceFeedAddress) external view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(priceFeedAddress);
-        (, int256 price, , , ) = priceFeed.latestRoundData();
-        return uint256(price);
+    function addLiquidity(uint256 ethAmount, uint256 linkAmount, uint256 daiAmount) external payable {
+                
+        ethDeposit[msg.sender] += ethAmount;
+        linkDeposit[msg.sender] += linkAmount;
+        daiDeposit[msg.sender] += daiAmount;
     }
+
+
+    fallback() external payable {}
+
+    receive() external payable {}
+    
 }
